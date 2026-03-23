@@ -234,7 +234,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <h1>Campus Work Orders</h1>
-      <p className="muted">Minimal Netlify-ready prototype</p>
+      <p className="muted"></p>
 
       <div className="panel">
         <h2>Filters</h2>
