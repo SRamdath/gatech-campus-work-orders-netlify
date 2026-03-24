@@ -361,28 +361,6 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
         {selectedBuilding ? (
           lineData.length > 0 ? (
             <>
-              <div className="craft-legend">
-                {lineKeys.map((key, index) => {
-                  const isActive = activeLines.includes(key);
-
-                  return (
-                    <div
-                      key={key}
-                      className={`craft-legend-row${isActive ? "" : " inactive"}`}
-                      onClick={() => toggleLine(key)}
-                    >
-                      <div className="craft-legend-left">
-                        <span
-                          className="craft-legend-swatch"
-                          style={{ background: getCraftColor(key, index) }}
-                        />
-                        <span>{key}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
               <div className="chart-wrap">
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={lineData}>
@@ -404,6 +382,28 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
                       ))}
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+
+              <div className="craft-legend">
+                {lineKeys.map((key, index) => {
+                  const isActive = activeLines.includes(key);
+
+                  return (
+                    <div
+                      key={key}
+                      className={`craft-legend-row${isActive ? "" : " inactive"}`}
+                      onClick={() => toggleLine(key)}
+                    >
+                      <div className="craft-legend-left">
+                        <span
+                          className="craft-legend-swatch"
+                          style={{ background: getCraftColor(key, index) }}
+                        />
+                        <span>{key}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </>
           ) : (
