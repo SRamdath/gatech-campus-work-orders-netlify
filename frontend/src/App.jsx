@@ -494,7 +494,15 @@ export default function App() {
     return filterTimeseriesRange(selectedBuilding.timeseries, yearStart, yearEnd);
   }, [selectedBuilding, yearStart, yearEnd]);
 
-  const lineKeys = useMemo(() => buildCraftKeys(lineData), [lineData]);
+  const lineKeys = useMemo(() => {
+  const rawKeys = buildCraftKeys(lineData);
+  const pieOrder = pieData.map((item) => item.name);
+
+  return [
+    ...pieOrder.filter((key) => rawKeys.includes(key)),
+    ...rawKeys.filter((key) => !pieOrder.includes(key)),
+  ];
+}, [lineData, pieData]);
 
   const styledGeojson = useMemo(() => {
     if (!geojsonData) return null;
