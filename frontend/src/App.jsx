@@ -181,43 +181,6 @@ function CustomPieTooltip({ active, payload }) {
   );
 }
 
-function CraftBreakdownLegend({ pieData }) {
-  if (!pieData?.length) return null;
-
-  return (
-    <div style={{ marginTop: "10px" }}>
-      {pieData.map((item, index) => (
-        <div
-          key={item.name}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-            padding: "6px 0",
-            borderBottom: "1px solid #f1f5f9",
-            fontSize: "13px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span
-              style={{
-                width: "12px",
-                height: "12px",
-                borderRadius: "3px",
-                background: getCraftColor(item.name, index),
-                display: "inline-block",
-              }}
-            />
-            <span>{item.name}</span>
-          </div>
-          <strong>{item.value.toLocaleString()}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function Sidebar({
   meta,
   yearStart,
@@ -304,6 +267,35 @@ function Sidebar({
 }
 
 function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
+  const [activePie, setActivePie] = useState([]);
+  const [activeLines, setActiveLines] = useState([]);
+
+  useEffect(() => {
+    setActivePie(pieData.map((d) => d.name));
+  }, [pieData]);
+
+  useEffect(() => {
+    setActiveLines(lineKeys);
+  }, [lineKeys]);
+
+  const filteredPieData = pieData.filter((d) => activePie.includes(d.name));
+
+  const togglePie = (name) => {
+    setActivePie((prev) =>
+      prev.includes(name)
+        ? prev.filter((x) => x !== name)
+        : [...prev, name]
+    );
+  };
+
+  const toggleLine = (key) => {
+    setActiveLines((prev) =>
+      prev.includes(key)
+        ? prev.filter((x) => x !== key)
+        : [...prev, key]
+    );
+  };
+
   return (
     <section className="details">
       <div className="panel">
@@ -315,14 +307,14 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
                 <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
                     <Pie
-                      data={pieData}
+                      data={filteredPieData}
                       dataKey="value"
                       nameKey="name"
                       outerRadius={58}
                       label={false}
                       labelLine={false}
                     >
-                      {pieData.map((entry, index) => (
+                      {filteredPieData.map((entry, index) => (
                         <Cell
                           key={`${entry.name}-${index}`}
                           fill={getCraftColor(entry.name, index)}
@@ -333,7 +325,29 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <CraftBreakdownLegend pieData={pieData} />
+
+              <div className="craft-legend">
+                {pieData.map((item, index) => {
+                  const isActive = activePie.includes(item.name);
+
+                  return (
+                    <div
+                      key={item.name}
+                      className={`craft-legend-row${isActive ? "" : " inactive"}`}
+                      onClick={() => togglePie(item.name)}
+                    >
+                      <div className="craft-legend-left">
+                        <span
+                          className="craft-legend-swatch"
+                          style={{ background: getCraftColor(item.name, index) }}
+                        />
+                        <span>{item.name}</span>
+                      </div>
+                      <strong>{item.value.toLocaleString()}</strong>
+                    </div>
+                  );
+                })}
+              </div>
             </>
           ) : (
             <p className="muted">No craft data in this range.</p>
@@ -354,17 +368,19 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
                   <XAxis dataKey="year_month" />
                   <YAxis allowDecimals={false} />
                   <Tooltip />
-                  <Legend />
-                  {lineKeys.map((key, index) => (
-                    <Line
-                      key={key}
-                      type="monotone"
-                      dataKey={key}
-                      stroke={getCraftColor(key, index)}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  ))}
+                  <Legend onClick={(e) => toggleLine(e.dataKey)} />
+                  {lineKeys
+                    .filter((key) => activeLines.includes(key))
+                    .map((key, index) => (
+                      <Line
+                        key={key}
+                        type="monotone"
+                        dataKey={key}
+                        stroke={getCraftColor(key, index)}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -532,12 +548,6 @@ export default function App() {
       <main className="main-content">
         <div className="map-panel">
           <div className="map-header">
-            <div>
-              <h2>Campus Map</h2>
-              <p className="muted">
-                Colored by total work orders in selected year range
-              </p>
-            </div>
             <MapLegend maxValue={maxVisibleValue} />
           </div>
 
