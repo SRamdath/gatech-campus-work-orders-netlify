@@ -5,7 +5,6 @@ import {
   Line,
   LineChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -361,29 +360,52 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
         <h2>Time Series by Craft</h2>
         {selectedBuilding ? (
           lineData.length > 0 ? (
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={lineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="year_month" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Legend onClick={(e) => toggleLine(e.dataKey)} />
-                  {lineKeys
-                    .filter((key) => activeLines.includes(key))
-                    .map((key, index) => (
-                      <Line
-                        key={key}
-                        type="monotone"
-                        dataKey={key}
-                        stroke={getCraftColor(key, index)}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <>
+              <div className="craft-legend">
+                {lineKeys.map((key, index) => {
+                  const isActive = activeLines.includes(key);
+
+                  return (
+                    <div
+                      key={key}
+                      className={`craft-legend-row${isActive ? "" : " inactive"}`}
+                      onClick={() => toggleLine(key)}
+                    >
+                      <div className="craft-legend-left">
+                        <span
+                          className="craft-legend-swatch"
+                          style={{ background: getCraftColor(key, index) }}
+                        />
+                        <span>{key}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="chart-wrap">
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={lineData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="year_month" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    {lineKeys
+                      .filter((key) => activeLines.includes(key))
+                      .map((key, index) => (
+                        <Line
+                          key={key}
+                          type="monotone"
+                          dataKey={key}
+                          stroke={getCraftColor(key, index)}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </>
           ) : (
             <p className="muted">No time-series data in this range.</p>
           )
