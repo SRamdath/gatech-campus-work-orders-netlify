@@ -299,17 +299,12 @@ function Sidebar({
   );
 }
 
-function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
+function PiePanel({ title, pieData }) {
   const [activePie, setActivePie] = useState([]);
-  const [activeLines, setActiveLines] = useState([]);
 
   useEffect(() => {
     setActivePie(pieData.map((d) => d.name));
   }, [pieData]);
-
-  useEffect(() => {
-    setActiveLines(lineKeys);
-  }, [lineKeys]);
 
   const filteredPieData = pieData.filter((d) => activePie.includes(d.name));
 
@@ -319,124 +314,129 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
     );
   };
 
+  return (
+    <div className="panel pie-side-panel">
+      <h2>{title}</h2>
+      {pieData.length > 0 ? (
+        <>
+          <div className="chart-wrap pie-chart-wrap">
+            <ResponsiveContainer width="100%" height={190}>
+              <PieChart>
+                <Pie
+                  data={filteredPieData}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={58}
+                  label={false}
+                  labelLine={false}
+                >
+                  {filteredPieData.map((entry, index) => (
+                    <Cell
+                      key={`${entry.name}-${index}`}
+                      fill={getCraftColor(entry.name, index)}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomPieTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="craft-legend vertical-legend">
+            {pieData.map((item, index) => {
+              const isActive = activePie.includes(item.name);
+
+              return (
+                <div
+                  key={item.name}
+                  className={`craft-legend-row${isActive ? "" : " inactive"}`}
+                  onClick={() => togglePie(item.name)}
+                >
+                  <div className="craft-legend-left">
+                    <span
+                      className="craft-legend-swatch"
+                      style={{ background: getCraftColor(item.name, index) }}
+                    />
+                    <span>{item.name}</span>
+                  </div>
+                  <strong>{item.value.toLocaleString()}</strong>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="muted">No craft data in this range.</p>
+      )}
+    </div>
+  );
+}
+
+function TimeSeriesPanel({ title, lineData, lineKeys }) {
+  const [activeLines, setActiveLines] = useState([]);
+
+  useEffect(() => {
+    setActiveLines(lineKeys);
+  }, [lineKeys]);
+
   const toggleLine = (key) => {
     setActiveLines((prev) =>
       prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
     );
   };
 
-  const pieTitle = selectedBuilding ? "Craft Breakdown" : "Craft Breakdown - All Buildings";
-  const lineTitle = selectedBuilding ? "Time Series by Craft" : "Time Series by Craft - All Buildings";
-
   return (
-    <section className="details">
-      <div className="panel">
-        <h2>{pieTitle}</h2>
-        {pieData.length > 0 ? (
-          <>
-            <div className="chart-wrap pie-chart-wrap">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={filteredPieData}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={70}
-                    label={false}
-                    labelLine={false}
-                  >
-                    {filteredPieData.map((entry, index) => (
-                      <Cell
-                        key={`${entry.name}-${index}`}
-                        fill={getCraftColor(entry.name, index)}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="craft-legend">
-              {pieData.map((item, index) => {
-                const isActive = activePie.includes(item.name);
-
-                return (
-                  <div
-                    key={item.name}
-                    className={`craft-legend-row${isActive ? "" : " inactive"}`}
-                    onClick={() => togglePie(item.name)}
-                  >
-                    <div className="craft-legend-left">
-                      <span
-                        className="craft-legend-swatch"
-                        style={{ background: getCraftColor(item.name, index) }}
-                      />
-                      <span>{item.name}</span>
-                    </div>
-                    <strong>{item.value.toLocaleString()}</strong>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <p className="muted">No craft data in this range.</p>
-        )}
-      </div>
-
-      <div className="panel">
-        <h2>{lineTitle}</h2>
-        {lineData.length > 0 ? (
-          <>
-            <div className="chart-wrap line-chart-wrap">
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={lineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="year_month" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  {lineKeys
-                    .filter((key) => activeLines.includes(key))
-                    .map((key, index) => (
-                      <Line
-                        key={key}
-                        type="monotone"
-                        dataKey={key}
-                        stroke={getCraftColor(key, index)}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="line-legend">
-              {lineKeys.map((key, index) => {
-                const isActive = activeLines.includes(key);
-
-                return (
-                  <div
-                    key={key}
-                    className={`line-legend-row${isActive ? "" : " inactive"}`}
-                    onClick={() => toggleLine(key)}
-                  >
-                    <span
-                      className="craft-legend-swatch"
-                      style={{ background: getCraftColor(key, index) }}
+    <div className="panel time-panel">
+      <h2>{title}</h2>
+      {lineData.length > 0 ? (
+        <>
+          <div className="chart-wrap line-chart-wrap">
+            <ResponsiveContainer width="100%" height={230}>
+              <LineChart data={lineData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year_month" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                {lineKeys
+                  .filter((key) => activeLines.includes(key))
+                  .map((key, index) => (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      stroke={getCraftColor(key, index)}
+                      strokeWidth={2}
+                      dot={false}
                     />
-                    <span>{key}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <p className="muted">No time-series data in this range.</p>
-        )}
-      </div>
-    </section>
+                  ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="line-legend">
+            {lineKeys.map((key, index) => {
+              const isActive = activeLines.includes(key);
+
+              return (
+                <div
+                  key={key}
+                  className={`line-legend-row${isActive ? "" : " inactive"}`}
+                  onClick={() => toggleLine(key)}
+                >
+                  <span
+                    className="craft-legend-swatch"
+                    style={{ background: getCraftColor(key, index) }}
+                  />
+                  <span>{key}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="muted">No time-series data in this range.</p>
+      )}
+    </div>
   );
 }
 
@@ -597,6 +597,9 @@ export default function App() {
     return <div className="loading">Loading dashboard...</div>;
   }
 
+  const pieTitle = selectedBuilding ? "Craft Breakdown" : "Craft Breakdown - All Buildings";
+  const lineTitle = selectedBuilding ? "Time Series by Craft" : "Time Series by Craft - All Buildings";
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -612,34 +615,37 @@ export default function App() {
       />
 
       <main className="main-content">
-        <div className="map-panel">
-          <div className="map-header">
-            <MapLegend maxValue={maxVisibleValue} />
+        <div className="top-visuals">
+          <div className="map-panel">
+            <div className="map-header">
+              <MapLegend maxValue={maxVisibleValue} />
+            </div>
+
+            <div className="map-wrap">
+              <MapContainer
+                center={GT_CENTER}
+                zoom={16}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  attribution="&copy; OpenStreetMap contributors"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <GeoJSON
+                  data={styledGeojson}
+                  style={geojsonStyle}
+                  onEachFeature={onEachFeature}
+                />
+                <ZoomToSelected selectedFeature={selectedFeature} />
+              </MapContainer>
+            </div>
           </div>
 
-          <div className="map-wrap">
-            <MapContainer
-              center={GT_CENTER}
-              zoom={16}
-              style={{ height: "100%", width: "100%" }}
-            >
-              <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <GeoJSON
-                data={styledGeojson}
-                style={geojsonStyle}
-                onEachFeature={onEachFeature}
-              />
-              <ZoomToSelected selectedFeature={selectedFeature} />
-            </MapContainer>
-          </div>
+          <PiePanel title={pieTitle} pieData={pieData} />
         </div>
 
-        <DetailsPanel
-          selectedBuilding={selectedBuilding}
-          pieData={pieData}
+        <TimeSeriesPanel
+          title={lineTitle}
           lineData={lineData}
           lineKeys={lineKeys}
         />
