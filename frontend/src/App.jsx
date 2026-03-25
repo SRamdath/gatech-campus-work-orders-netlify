@@ -53,30 +53,37 @@ function fitFeatureBounds(map, featureLayer) {
   }
 }
 
-function MapLegend({ maxValue }) {
+function MapLegend({ maxValue, displayMode }) {
   const bins = useMemo(() => {
     if (!maxValue || maxValue <= 0) {
       return [{ label: "0", color: "#f3f4f6" }];
     }
 
-    const b1 = Math.max(1, Math.round(maxValue * 0.2));
-    const b2 = Math.max(b1 + 1, Math.round(maxValue * 0.4));
-    const b3 = Math.max(b2 + 1, Math.round(maxValue * 0.6));
-    const b4 = Math.max(b3 + 1, Math.round(maxValue * 0.8));
+    const b1 = Number((maxValue * 0.2).toFixed(2));
+    const b2 = Number((maxValue * 0.4).toFixed(2));
+    const b3 = Number((maxValue * 0.6).toFixed(2));
+    const b4 = Number((maxValue * 0.8).toFixed(2));
+
+    const fmt = (v) =>
+      displayMode === "density"
+        ? Number(v).toFixed(1)
+        : Math.round(Number(v)).toLocaleString();
 
     return [
       { label: "0", color: "#f3f4f6" },
-      { label: `1–${b1}`, color: "#dbeafe" },
-      { label: `${b1 + 1}–${b2}`, color: "#93c5fd" },
-      { label: `${b2 + 1}–${b3}`, color: "#60a5fa" },
-      { label: `${b3 + 1}–${b4}`, color: "#2563eb" },
-      { label: `${b4 + 1}+`, color: "#1d4ed8" },
+      { label: `0–${fmt(b1)}`, color: "#dbeafe" },
+      { label: `${fmt(b1)}–${fmt(b2)}`, color: "#93c5fd" },
+      { label: `${fmt(b2)}–${fmt(b3)}`, color: "#60a5fa" },
+      { label: `${fmt(b3)}–${fmt(b4)}`, color: "#2563eb" },
+      { label: `${fmt(b4)}+`, color: "#1d4ed8" },
     ];
-  }, [maxValue]);
+  }, [maxValue, displayMode]);
 
   return (
     <div className="legend">
-      <div className="legend-title">Work Orders</div>
+      <div className="legend-title">
+        {displayMode === "density" ? "WO / 1000 sqft" : "Work Orders"}
+      </div>
       {bins.map((bin) => (
         <div key={bin.label} className="legend-row">
           <span className="legend-swatch" style={{ background: bin.color }} />
@@ -183,10 +190,35 @@ function aggregateTimeseriesAcrossBuildings(buildingsLookup) {
   );
 }
 
-function CustomPieTooltip({ active, payload }) {
+function normalizeCount(rawValue, gsf) {
+  if (!gsf || Number(gsf) <= 0) return 0;
+  return Number(rawValue || 0) / (Number(gsf) / 1000);
+}
+
+function normalizeTimeseries(timeseries, gsf) {
+  if (!Array.isArray(timeseries)) return [];
+  if (!gsf || Number(gsf) <= 0) return timeseries.map((row) => ({ ...row }));
+
+  const divisor = Number(gsf) / 1000;
+
+  return timeseries.map((row) => {
+    const next = { year_month: row.year_month, total: Number(row.total || 0) / divisor };
+    for (const [key, value] of Object.entries(row)) {
+      if (key === "year_month" || key === "total") continue;
+      next[key] = Number(value || 0) / divisor;
+    }
+    return next;
+  });
+}
+
+function CustomPieTooltip({ active, payload, displayMode }) {
   if (!active || !payload || !payload.length) return null;
 
   const item = payload[0];
+  const value =
+    displayMode === "density"
+      ? Number(item.value || 0).toFixed(2)
+      : Number(item.value || 0).toLocaleString();
 
   return (
     <div
@@ -199,9 +231,15 @@ function CustomPieTooltip({ active, payload }) {
       }}
     >
       <div style={{ fontWeight: 700 }}>{item.name}</div>
-      <div>Count: {item.value?.toLocaleString()}</div>
+      <div>{displayMode === "density" ? "WO / 1000 sqft" : "Count"}: {value}</div>
     </div>
   );
+}
+
+function formatDisplayValue(value, displayMode) {
+  return displayMode === "density"
+    ? Number(value || 0).toFixed(2)
+    : Number(value || 0).toLocaleString();
 }
 
 function Sidebar({
@@ -214,6 +252,8 @@ function Sidebar({
   mappedCount,
   selectedBuilding,
   clearSelection,
+  displayMode,
+  setDisplayMode,
 }) {
   const minYear = meta?.year_bounds?.min ?? 2018;
   const maxYear = meta?.year_bounds?.max ?? 2022;
@@ -243,6 +283,26 @@ function Sidebar({
           onChange={(e) => setYearEnd(Number(e.target.value))}
         />
 
+        <div className="mode-toggle">
+          <label>Display Mode</label>
+          <div className="mode-toggle-row">
+            <button
+              type="button"
+              className={`mode-button${displayMode === "count" ? " active" : ""}`}
+              onClick={() => setDisplayMode("count")}
+            >
+              Count
+            </button>
+            <button
+              type="button"
+              className={`mode-button${displayMode === "density" ? " active" : ""}`}
+              onClick={() => setDisplayMode("density")}
+            >
+              Count / 1000 sqft
+            </button>
+          </div>
+        </div>
+
         <p className="small-note">
           Current range: {yearStart} to {yearEnd}
         </p>
@@ -251,8 +311,8 @@ function Sidebar({
       <div className="panel">
         <h2>Summary</h2>
         <div className="stat">
-          <span>Total visible work orders</span>
-          <strong>{totalVisible.toLocaleString()}</strong>
+          <span>{displayMode === "density" ? "Total visible WO / 1000 sqft" : "Total visible work orders"}</span>
+          <strong>{formatDisplayValue(totalVisible, displayMode)}</strong>
         </div>
         <div className="stat">
           <span>Mapped buildings with data</span>
@@ -277,8 +337,12 @@ function Sidebar({
               <strong>{selectedBuilding.facility_number || "N/A"}</strong>
             </div>
             <div className="stat">
-              <span>Total</span>
-              <strong>{selectedBuilding.filteredTotal.toLocaleString()}</strong>
+              <span>GSF</span>
+              <strong>{selectedBuilding.gsf ? Number(selectedBuilding.gsf).toLocaleString() : "N/A"}</strong>
+            </div>
+            <div className="stat">
+              <span>{displayMode === "density" ? "WO / 1000 sqft" : "Total"}</span>
+              <strong>{formatDisplayValue(selectedBuilding.filteredTotal, displayMode)}</strong>
             </div>
             <button className="reset-button" onClick={clearSelection}>
               Show All Buildings
@@ -299,7 +363,7 @@ function Sidebar({
   );
 }
 
-function PiePanel({ title, pieData }) {
+function PiePanel({ title, pieData, displayMode }) {
   const [activePie, setActivePie] = useState([]);
 
   useEffect(() => {
@@ -338,7 +402,7 @@ function PiePanel({ title, pieData }) {
                       />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
+                  <Tooltip content={<CustomPieTooltip displayMode={displayMode} />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -362,7 +426,7 @@ function PiePanel({ title, pieData }) {
                       />
                       <span>{item.name}</span>
                     </div>
-                    <strong>{item.value.toLocaleString()}</strong>
+                    <strong>{formatDisplayValue(item.value, displayMode)}</strong>
                   </div>
                 );
               })}
@@ -376,7 +440,7 @@ function PiePanel({ title, pieData }) {
   );
 }
 
-function TimeSeriesPanel({ title, lineData, lineKeys }) {
+function TimeSeriesPanel({ title, lineData, lineKeys, displayMode }) {
   const [activeLines, setActiveLines] = useState([]);
 
   useEffect(() => {
@@ -400,7 +464,9 @@ function TimeSeriesPanel({ title, lineData, lineKeys }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year_month" />
                 <YAxis allowDecimals={false} />
-                <Tooltip />
+                <Tooltip
+                  formatter={(value) => formatDisplayValue(value, displayMode)}
+                />
                 {lineKeys
                   .filter((key) => activeLines.includes(key))
                   .map((key, index) => (
@@ -451,6 +517,7 @@ export default function App() {
   const [selectedFeature, setSelectedFeature] = useState(null);
   const [yearStart, setYearStart] = useState(2018);
   const [yearEnd, setYearEnd] = useState(2022);
+  const [displayMode, setDisplayMode] = useState("count");
 
   useEffect(() => {
     async function loadData() {
@@ -476,19 +543,39 @@ export default function App() {
 
   const buildingsLookup = dashboardData?.buildings ?? {};
 
-  const aggregatedTimeseries = useMemo(() => {
+  const gsfLookup = useMemo(() => {
+    const result = {};
+    for (const feature of geojsonData?.features || []) {
+      const facId = feature?.properties?.fac_id;
+      const gsf = feature?.properties?.Sheet3__GSF;
+      if (facId) result[facId] = Number(gsf || 0);
+    }
+    return result;
+  }, [geojsonData]);
+
+  const aggregatedTimeseriesRaw = useMemo(() => {
     return aggregateTimeseriesAcrossBuildings(buildingsLookup);
   }, [buildingsLookup]);
+
+  const aggregateGsf = useMemo(() => {
+    return Object.values(gsfLookup).reduce((sum, gsf) => sum + Number(gsf || 0), 0);
+  }, [gsfLookup]);
 
   const filteredBuildingTotals = useMemo(() => {
     const result = {};
 
     for (const [facId, building] of Object.entries(buildingsLookup)) {
-      result[facId] = totalForRange(building.timeseries, yearStart, yearEnd);
+      const rawTotal = totalForRange(building.timeseries, yearStart, yearEnd);
+      const gsf = gsfLookup[facId] || 0;
+
+      result[facId] =
+        displayMode === "density"
+          ? normalizeCount(rawTotal, gsf)
+          : rawTotal;
     }
 
     return result;
-  }, [buildingsLookup, yearStart, yearEnd]);
+  }, [buildingsLookup, yearStart, yearEnd, gsfLookup, displayMode]);
 
   const maxVisibleValue = useMemo(() => {
     const values = Object.values(filteredBuildingTotals);
@@ -496,8 +583,16 @@ export default function App() {
   }, [filteredBuildingTotals]);
 
   const totalVisible = useMemo(() => {
+    if (displayMode === "density") {
+      const rawTotal = Object.entries(buildingsLookup).reduce(
+        (sum, [, building]) => sum + totalForRange(building.timeseries, yearStart, yearEnd),
+        0
+      );
+      return normalizeCount(rawTotal, aggregateGsf);
+    }
+
     return Object.values(filteredBuildingTotals).reduce((sum, value) => sum + value, 0);
-  }, [filteredBuildingTotals]);
+  }, [displayMode, buildingsLookup, yearStart, yearEnd, aggregateGsf, filteredBuildingTotals]);
 
   const mappedCount = useMemo(() => {
     return Object.values(filteredBuildingTotals).filter((v) => v > 0).length;
@@ -508,14 +603,22 @@ export default function App() {
     const building = buildingsLookup[selectedFacId];
     return {
       ...building,
+      gsf: gsfLookup[selectedFacId] || 0,
       filteredTotal: filteredBuildingTotals[selectedFacId] || 0,
     };
-  }, [selectedFacId, buildingsLookup, filteredBuildingTotals]);
+  }, [selectedFacId, buildingsLookup, filteredBuildingTotals, gsfLookup]);
 
   const activeTimeseries = useMemo(() => {
-    if (selectedBuilding) return selectedBuilding.timeseries;
-    return aggregatedTimeseries;
-  }, [selectedBuilding, aggregatedTimeseries]);
+    if (selectedBuilding) {
+      return displayMode === "density"
+        ? normalizeTimeseries(selectedBuilding.timeseries, selectedBuilding.gsf)
+        : selectedBuilding.timeseries;
+    }
+
+    return displayMode === "density"
+      ? normalizeTimeseries(aggregatedTimeseriesRaw, aggregateGsf)
+      : aggregatedTimeseriesRaw;
+  }, [selectedBuilding, aggregatedTimeseriesRaw, aggregateGsf, displayMode]);
 
   const pieData = useMemo(() => {
     const counts = craftCountsForRange(activeTimeseries, yearStart, yearEnd);
@@ -568,7 +671,11 @@ export default function App() {
       `<div style="font-size:12px;">
         <strong>${name}</strong><br/>
         FAC_ID: ${facId || "N/A"}<br/>
-        Work Orders: ${filteredTotal}
+        ${displayMode === "density" ? "WO / 1000 sqft" : "Work Orders"}: ${
+          displayMode === "density"
+            ? Number(filteredTotal || 0).toFixed(2)
+            : Math.round(Number(filteredTotal || 0)).toLocaleString()
+        }
       </div>`
     );
 
@@ -601,8 +708,23 @@ export default function App() {
     return <div className="loading">Loading dashboard...</div>;
   }
 
-  const pieTitle = selectedBuilding ? "Craft Breakdown" : "Craft Breakdown - All Buildings";
-  const lineTitle = selectedBuilding ? "Time Series by Craft" : "Time Series by Craft - All Buildings";
+  const pieTitle =
+    selectedBuilding
+      ? displayMode === "density"
+        ? "Craft Breakdown / 1000 sqft"
+        : "Craft Breakdown"
+      : displayMode === "density"
+        ? "Craft Breakdown / 1000 sqft - All Buildings"
+        : "Craft Breakdown - All Buildings";
+
+  const lineTitle =
+    selectedBuilding
+      ? displayMode === "density"
+        ? "Time Series by Craft / 1000 sqft"
+        : "Time Series by Craft"
+      : displayMode === "density"
+        ? "Time Series by Craft / 1000 sqft - All Buildings"
+        : "Time Series by Craft - All Buildings";
 
   return (
     <div className="app-shell">
@@ -616,13 +738,15 @@ export default function App() {
         mappedCount={mappedCount}
         selectedBuilding={selectedBuilding}
         clearSelection={clearSelection}
+        displayMode={displayMode}
+        setDisplayMode={setDisplayMode}
       />
 
       <main className="main-content">
         <div className="top-visuals">
           <div className="map-panel">
             <div className="map-header">
-              <MapLegend maxValue={maxVisibleValue} />
+              <MapLegend maxValue={maxVisibleValue} displayMode={displayMode} />
             </div>
 
             <div className="map-wrap">
@@ -645,13 +769,14 @@ export default function App() {
             </div>
           </div>
 
-          <PiePanel title={pieTitle} pieData={pieData} />
+          <PiePanel title={pieTitle} pieData={pieData} displayMode={displayMode} />
         </div>
 
         <TimeSeriesPanel
           title={lineTitle}
           lineData={lineData}
           lineKeys={lineKeys}
+          displayMode={displayMode}
         />
       </main>
     </div>
