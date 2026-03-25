@@ -115,7 +115,7 @@ function totalForRange(timeseries, startYear, endYear) {
   return timeseries.reduce((sum, row) => {
     const year = Number(String(row.year_month).slice(0, 4));
     if (year >= startYear && year <= endYear) {
-      return sum + (row.total || 0);
+      return sum + Number(row.total || 0);
     }
     return sum;
   }, 0);
@@ -159,6 +159,30 @@ function buildCraftKeys(timeseries) {
   return Array.from(keys).sort();
 }
 
+function aggregateTimeseriesAcrossBuildings(buildingsLookup) {
+  const monthMap = {};
+
+  for (const building of Object.values(buildingsLookup || {})) {
+    for (const row of building.timeseries || []) {
+      const monthKey = row.year_month;
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = { year_month: monthKey, total: 0 };
+      }
+
+      monthMap[monthKey].total += Number(row.total || 0);
+
+      for (const [key, value] of Object.entries(row)) {
+        if (key === "year_month" || key === "total") continue;
+        monthMap[monthKey][key] = (monthMap[monthKey][key] || 0) + Number(value || 0);
+      }
+    }
+  }
+
+  return Object.values(monthMap).sort((a, b) =>
+    String(a.year_month).localeCompare(String(b.year_month))
+  );
+}
+
 function CustomPieTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
 
@@ -189,6 +213,7 @@ function Sidebar({
   totalVisible,
   mappedCount,
   selectedBuilding,
+  clearSelection,
 }) {
   const minYear = meta?.year_bounds?.min ?? 2018;
   const maxYear = meta?.year_bounds?.max ?? 2022;
@@ -196,7 +221,6 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <h1>Campus Work Orders</h1>
-      <p className="muted"></p>
 
       <div className="panel">
         <h2>Filters</h2>
@@ -237,7 +261,7 @@ function Sidebar({
       </div>
 
       <div className="panel">
-        <h2>Selected Building</h2>
+        <h2>{selectedBuilding ? "Selected Building" : "Current View"}</h2>
         {selectedBuilding ? (
           <>
             <div className="stat">
@@ -256,9 +280,19 @@ function Sidebar({
               <span>Total</span>
               <strong>{selectedBuilding.filteredTotal.toLocaleString()}</strong>
             </div>
+            <button className="reset-button" onClick={clearSelection}>
+              Show All Buildings
+            </button>
           </>
         ) : (
-          <p className="muted">Click a building on the map.</p>
+          <>
+            <p className="muted overall-note">
+              Showing aggregated charts across all buildings.
+            </p>
+            <button className="reset-button disabled" disabled>
+              All Buildings Active
+            </button>
+          </>
         )}
       </div>
     </aside>
@@ -281,136 +315,125 @@ function DetailsPanel({ selectedBuilding, pieData, lineData, lineKeys }) {
 
   const togglePie = (name) => {
     setActivePie((prev) =>
-      prev.includes(name)
-        ? prev.filter((x) => x !== name)
-        : [...prev, name]
+      prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]
     );
   };
 
   const toggleLine = (key) => {
     setActiveLines((prev) =>
-      prev.includes(key)
-        ? prev.filter((x) => x !== key)
-        : [...prev, key]
+      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
     );
   };
+
+  const pieTitle = selectedBuilding ? "Craft Breakdown" : "Craft Breakdown - All Buildings";
+  const lineTitle = selectedBuilding ? "Time Series by Craft" : "Time Series by Craft - All Buildings";
 
   return (
     <section className="details">
       <div className="panel">
-        <h2>Craft Breakdown</h2>
-        {selectedBuilding ? (
-          pieData.length > 0 ? (
-            <>
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie
-                      data={filteredPieData}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={58}
-                      label={false}
-                      labelLine={false}
-                    >
-                      {filteredPieData.map((entry, index) => (
-                        <Cell
-                          key={`${entry.name}-${index}`}
-                          fill={getCraftColor(entry.name, index)}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomPieTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+        <h2>{pieTitle}</h2>
+        {pieData.length > 0 ? (
+          <>
+            <div className="chart-wrap pie-chart-wrap">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={filteredPieData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={70}
+                    label={false}
+                    labelLine={false}
+                  >
+                    {filteredPieData.map((entry, index) => (
+                      <Cell
+                        key={`${entry.name}-${index}`}
+                        fill={getCraftColor(entry.name, index)}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
 
-              <div className="craft-legend">
-                {pieData.map((item, index) => {
-                  const isActive = activePie.includes(item.name);
+            <div className="craft-legend">
+              {pieData.map((item, index) => {
+                const isActive = activePie.includes(item.name);
 
-                  return (
-                    <div
-                      key={item.name}
-                      className={`craft-legend-row${isActive ? "" : " inactive"}`}
-                      onClick={() => togglePie(item.name)}
-                    >
-                      <div className="craft-legend-left">
-                        <span
-                          className="craft-legend-swatch"
-                          style={{ background: getCraftColor(item.name, index) }}
-                        />
-                        <span>{item.name}</span>
-                      </div>
-                      <strong>{item.value.toLocaleString()}</strong>
+                return (
+                  <div
+                    key={item.name}
+                    className={`craft-legend-row${isActive ? "" : " inactive"}`}
+                    onClick={() => togglePie(item.name)}
+                  >
+                    <div className="craft-legend-left">
+                      <span
+                        className="craft-legend-swatch"
+                        style={{ background: getCraftColor(item.name, index) }}
+                      />
+                      <span>{item.name}</span>
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <p className="muted">No craft data in this range.</p>
-          )
+                    <strong>{item.value.toLocaleString()}</strong>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
-          <p className="muted">Select a building to see craft breakdown.</p>
+          <p className="muted">No craft data in this range.</p>
         )}
       </div>
 
       <div className="panel">
-        <h2>Time Series by Craft</h2>
-        {selectedBuilding ? (
-          lineData.length > 0 ? (
-            <>
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={lineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="year_month" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    {lineKeys
-                      .filter((key) => activeLines.includes(key))
-                      .map((key, index) => (
-                        <Line
-                          key={key}
-                          type="monotone"
-                          dataKey={key}
-                          stroke={getCraftColor(key, index)}
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+        <h2>{lineTitle}</h2>
+        {lineData.length > 0 ? (
+          <>
+            <div className="chart-wrap line-chart-wrap">
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={lineData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="year_month" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  {lineKeys
+                    .filter((key) => activeLines.includes(key))
+                    .map((key, index) => (
+                      <Line
+                        key={key}
+                        type="monotone"
+                        dataKey={key}
+                        stroke={getCraftColor(key, index)}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
 
-              <div className="craft-legend">
-                {lineKeys.map((key, index) => {
-                  const isActive = activeLines.includes(key);
+            <div className="line-legend">
+              {lineKeys.map((key, index) => {
+                const isActive = activeLines.includes(key);
 
-                  return (
-                    <div
-                      key={key}
-                      className={`craft-legend-row${isActive ? "" : " inactive"}`}
-                      onClick={() => toggleLine(key)}
-                    >
-                      <div className="craft-legend-left">
-                        <span
-                          className="craft-legend-swatch"
-                          style={{ background: getCraftColor(key, index) }}
-                        />
-                        <span>{key}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <p className="muted">No time-series data in this range.</p>
-          )
+                return (
+                  <div
+                    key={key}
+                    className={`line-legend-row${isActive ? "" : " inactive"}`}
+                    onClick={() => toggleLine(key)}
+                  >
+                    <span
+                      className="craft-legend-swatch"
+                      style={{ background: getCraftColor(key, index) }}
+                    />
+                    <span>{key}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
-          <p className="muted">Select a building to see its trend over time.</p>
+          <p className="muted">No time-series data in this range.</p>
         )}
       </div>
     </section>
@@ -449,6 +472,10 @@ export default function App() {
 
   const buildingsLookup = dashboardData?.buildings ?? {};
 
+  const aggregatedTimeseries = useMemo(() => {
+    return aggregateTimeseriesAcrossBuildings(buildingsLookup);
+  }, [buildingsLookup]);
+
   const filteredBuildingTotals = useMemo(() => {
     const result = {};
 
@@ -481,28 +508,31 @@ export default function App() {
     };
   }, [selectedFacId, buildingsLookup, filteredBuildingTotals]);
 
+  const activeTimeseries = useMemo(() => {
+    if (selectedBuilding) return selectedBuilding.timeseries;
+    return aggregatedTimeseries;
+  }, [selectedBuilding, aggregatedTimeseries]);
+
   const pieData = useMemo(() => {
-    if (!selectedBuilding) return [];
-    const counts = craftCountsForRange(selectedBuilding.timeseries, yearStart, yearEnd);
+    const counts = craftCountsForRange(activeTimeseries, yearStart, yearEnd);
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [selectedBuilding, yearStart, yearEnd]);
+  }, [activeTimeseries, yearStart, yearEnd]);
 
   const lineData = useMemo(() => {
-    if (!selectedBuilding) return [];
-    return filterTimeseriesRange(selectedBuilding.timeseries, yearStart, yearEnd);
-  }, [selectedBuilding, yearStart, yearEnd]);
+    return filterTimeseriesRange(activeTimeseries, yearStart, yearEnd);
+  }, [activeTimeseries, yearStart, yearEnd]);
 
   const lineKeys = useMemo(() => {
-  const rawKeys = buildCraftKeys(lineData);
-  const pieOrder = pieData.map((item) => item.name);
+    const rawKeys = buildCraftKeys(lineData);
+    const pieOrder = pieData.map((item) => item.name);
 
-  return [
-    ...pieOrder.filter((key) => rawKeys.includes(key)),
-    ...rawKeys.filter((key) => !pieOrder.includes(key)),
-  ];
-}, [lineData, pieData]);
+    return [
+      ...pieOrder.filter((key) => rawKeys.includes(key)),
+      ...rawKeys.filter((key) => !pieOrder.includes(key)),
+    ];
+  }, [lineData, pieData]);
 
   const styledGeojson = useMemo(() => {
     if (!geojsonData) return null;
@@ -558,6 +588,11 @@ export default function App() {
     };
   }
 
+  function clearSelection() {
+    setSelectedFacId(null);
+    setSelectedFeature(null);
+  }
+
   if (!dashboardData || !styledGeojson) {
     return <div className="loading">Loading dashboard...</div>;
   }
@@ -573,6 +608,7 @@ export default function App() {
         totalVisible={totalVisible}
         mappedCount={mappedCount}
         selectedBuilding={selectedBuilding}
+        clearSelection={clearSelection}
       />
 
       <main className="main-content">
