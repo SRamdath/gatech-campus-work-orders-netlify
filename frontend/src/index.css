@@ -76,8 +76,9 @@ body {
   overflow: hidden;
 }
 
+/* 🔥 Slightly taller pie panel */
 .pie-side-panel {
-  min-height: 344px;
+  min-height: 380px; /* was ~344 */
   overflow: hidden;
 }
 
@@ -210,8 +211,9 @@ input {
   margin-top: 6px;
 }
 
+/* 🔥 Give legend more room before scrolling */
 .vertical-legend {
-  max-height: 138px;
+  max-height: 190px; /* was ~138 */
   overflow-y: auto;
   padding-right: 4px;
 }
