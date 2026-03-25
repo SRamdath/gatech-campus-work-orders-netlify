@@ -229,7 +229,7 @@ input {
 }
 
 .side-legend {
-  max-height: 450px;
+  max-height: 480px;
   overflow-y: auto;
   padding-right: 4px;
 }
