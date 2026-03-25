@@ -77,7 +77,7 @@ body {
 }
 
 .pie-side-panel {
-  min-height: 360px;
+  min-height: 410px;
   overflow: hidden;
 }
 
@@ -229,7 +229,7 @@ input {
 }
 
 .side-legend {
-  max-height: 255px;
+  max-height: 305px;
   overflow-y: auto;
   padding-right: 4px;
 }
