@@ -45,7 +45,7 @@ body {
 
 .top-visuals {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(420px, 1fr);
   gap: 10px;
   align-items: start;
 }
@@ -77,8 +77,26 @@ body {
 }
 
 .pie-side-panel {
-  min-height: 344px; /* was 344 */
+  min-height: 360px;
   overflow: hidden;
+}
+
+.pie-side-layout {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.85fr) minmax(230px, 1.15fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.pie-graphic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 230px;
+}
+
+.pie-legend-side {
+  min-width: 0;
 }
 
 .time-panel {
@@ -197,21 +215,21 @@ input {
 }
 
 .pie-chart-wrap {
-  height: 200px;
-  min-height: 200px;
+  height: 210px;
+  min-height: 210px;
 }
 
 .line-chart-wrap {
-  height: 250px;
-  min-height: 250px;
+  height: 230px;
+  min-height: 230px;
 }
 
 .craft-legend {
-  margin-top: 6px;
+  margin-top: 0;
 }
 
-.vertical-legend {
-  max-height: 138px; /* was 138 */
+.side-legend {
+  max-height: 255px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -236,6 +254,11 @@ input {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+.craft-legend-left span:last-child {
+  overflow-wrap: anywhere;
 }
 
 .craft-legend-swatch {
@@ -273,9 +296,23 @@ input {
   font-size: 1.1rem;
 }
 
-@media (max-width: 1300px) {
+@media (max-width: 1400px) {
   .top-visuals {
-    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.95fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(390px, 1fr);
+  }
+
+  .pie-side-layout {
+    grid-template-columns: minmax(140px, 0.8fr) minmax(220px, 1.2fr);
+  }
+}
+
+@media (max-width: 1200px) {
+  .top-visuals {
+    grid-template-columns: 1fr;
+  }
+
+  .pie-side-layout {
+    grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1.2fr);
   }
 
   .map-wrap {
@@ -293,19 +330,21 @@ input {
     border-bottom: 1px solid #e2e8f0;
   }
 
-  .top-visuals {
+  .map-header {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .pie-side-layout {
     grid-template-columns: 1fr;
   }
 
-  .map-wrap {
-    height: 280px;
+  .pie-graphic {
+    min-height: 200px;
   }
 
-  .pie-side-panel {
-    min-height: unset;
-  }
-
-  .map-header {
-    justify-content: flex-start;
+  .side-legend {
+    max-height: 180px;
   }
 }
