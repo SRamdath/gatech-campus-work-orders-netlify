@@ -172,6 +172,7 @@ function aggregateTimeseriesAcrossBuildings(buildingsLookup) {
   for (const building of Object.values(buildingsLookup || {})) {
     for (const row of building.timeseries || []) {
       const monthKey = row.year_month;
+
       if (!monthMap[monthKey]) {
         monthMap[monthKey] = { year_month: monthKey, total: 0 };
       }
@@ -202,11 +203,16 @@ function normalizeTimeseries(timeseries, gsf) {
   const divisor = Number(gsf) / 1000;
 
   return timeseries.map((row) => {
-    const next = { year_month: row.year_month, total: Number(row.total || 0) / divisor };
+    const next = {
+      year_month: row.year_month,
+      total: Number(row.total || 0) / divisor,
+    };
+
     for (const [key, value] of Object.entries(row)) {
       if (key === "year_month" || key === "total") continue;
       next[key] = Number(value || 0) / divisor;
     }
+
     return next;
   });
 }
@@ -231,7 +237,9 @@ function CustomPieTooltip({ active, payload, displayMode }) {
       }}
     >
       <div style={{ fontWeight: 700 }}>{item.name}</div>
-      <div>{displayMode === "density" ? "WO / 1000 sqft" : "Count"}: {value}</div>
+      <div>
+        {displayMode === "density" ? "WO / 1000 sqft" : "Count"}: {value}
+      </div>
     </div>
   );
 }
@@ -311,7 +319,11 @@ function Sidebar({
       <div className="panel">
         <h2>Summary</h2>
         <div className="stat">
-          <span>{displayMode === "density" ? "Total visible WO / 1000 sqft" : "Total visible work orders"}</span>
+          <span>
+            {displayMode === "density"
+              ? "Total visible WO / 1000 sqft"
+              : "Total visible work orders"}
+          </span>
           <strong>{formatDisplayValue(totalVisible, displayMode)}</strong>
         </div>
         <div className="stat">
@@ -338,7 +350,11 @@ function Sidebar({
             </div>
             <div className="stat">
               <span>GSF</span>
-              <strong>{selectedBuilding.gsf ? Number(selectedBuilding.gsf).toLocaleString() : "N/A"}</strong>
+              <strong>
+                {selectedBuilding.gsf
+                  ? Number(selectedBuilding.gsf).toLocaleString()
+                  : "N/A"}
+              </strong>
             </div>
             <div className="stat">
               <span>{displayMode === "density" ? "WO / 1000 sqft" : "Total"}</span>
@@ -463,7 +479,7 @@ function TimeSeriesPanel({ title, lineData, lineKeys, displayMode }) {
               <LineChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year_month" />
-                <YAxis allowDecimals={false} />
+                <YAxis allowDecimals={displayMode === "density"} />
                 <Tooltip
                   formatter={(value) => formatDisplayValue(value, displayMode)}
                 />
@@ -545,11 +561,15 @@ export default function App() {
 
   const gsfLookup = useMemo(() => {
     const result = {};
+
     for (const feature of geojsonData?.features || []) {
       const facId = feature?.properties?.fac_id;
       const gsf = feature?.properties?.Sheet3__GSF;
-      if (facId) result[facId] = Number(gsf || 0);
+      if (facId) {
+        result[facId] = Number(gsf || 0);
+      }
     }
+
     return result;
   }, [geojsonData]);
 
@@ -561,13 +581,21 @@ export default function App() {
     return Object.values(gsfLookup).reduce((sum, gsf) => sum + Number(gsf || 0), 0);
   }, [gsfLookup]);
 
-  const filteredBuildingTotals = useMemo(() => {
+  const rawBuildingTotals = useMemo(() => {
     const result = {};
 
     for (const [facId, building] of Object.entries(buildingsLookup)) {
-      const rawTotal = totalForRange(building.timeseries, yearStart, yearEnd);
-      const gsf = gsfLookup[facId] || 0;
+      result[facId] = totalForRange(building.timeseries, yearStart, yearEnd);
+    }
 
+    return result;
+  }, [buildingsLookup, yearStart, yearEnd]);
+
+  const filteredBuildingTotals = useMemo(() => {
+    const result = {};
+
+    for (const [facId, rawTotal] of Object.entries(rawBuildingTotals)) {
+      const gsf = gsfLookup[facId] || 0;
       result[facId] =
         displayMode === "density"
           ? normalizeCount(rawTotal, gsf)
@@ -575,7 +603,7 @@ export default function App() {
     }
 
     return result;
-  }, [buildingsLookup, yearStart, yearEnd, gsfLookup, displayMode]);
+  }, [rawBuildingTotals, gsfLookup, displayMode]);
 
   const maxVisibleValue = useMemo(() => {
     const values = Object.values(filteredBuildingTotals);
@@ -584,29 +612,34 @@ export default function App() {
 
   const totalVisible = useMemo(() => {
     if (displayMode === "density") {
-      const rawTotal = Object.entries(buildingsLookup).reduce(
-        (sum, [, building]) => sum + totalForRange(building.timeseries, yearStart, yearEnd),
+      const rawTotal = Object.values(rawBuildingTotals).reduce(
+        (sum, value) => sum + Number(value || 0),
         0
       );
       return normalizeCount(rawTotal, aggregateGsf);
     }
 
-    return Object.values(filteredBuildingTotals).reduce((sum, value) => sum + value, 0);
-  }, [displayMode, buildingsLookup, yearStart, yearEnd, aggregateGsf, filteredBuildingTotals]);
+    return Object.values(filteredBuildingTotals).reduce(
+      (sum, value) => sum + Number(value || 0),
+      0
+    );
+  }, [displayMode, rawBuildingTotals, aggregateGsf, filteredBuildingTotals]);
 
   const mappedCount = useMemo(() => {
-    return Object.values(filteredBuildingTotals).filter((v) => v > 0).length;
-  }, [filteredBuildingTotals]);
+    return Object.values(rawBuildingTotals).filter((value) => value > 0).length;
+  }, [rawBuildingTotals]);
 
   const selectedBuilding = useMemo(() => {
     if (!selectedFacId || !buildingsLookup[selectedFacId]) return null;
+
     const building = buildingsLookup[selectedFacId];
+
     return {
       ...building,
       gsf: gsfLookup[selectedFacId] || 0,
       filteredTotal: filteredBuildingTotals[selectedFacId] || 0,
     };
-  }, [selectedFacId, buildingsLookup, filteredBuildingTotals, gsfLookup]);
+  }, [selectedFacId, buildingsLookup, gsfLookup, filteredBuildingTotals]);
 
   const activeTimeseries = useMemo(() => {
     if (selectedBuilding) {
@@ -622,6 +655,7 @@ export default function App() {
 
   const pieData = useMemo(() => {
     const counts = craftCountsForRange(activeTimeseries, yearStart, yearEnd);
+
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -649,17 +683,19 @@ export default function App() {
       features: geojsonData.features.map((feature) => {
         const facId = feature?.properties?.fac_id;
         const filteredTotal = facId ? filteredBuildingTotals[facId] || 0 : 0;
+        const rawTotal = facId ? rawBuildingTotals[facId] || 0 : 0;
 
         return {
           ...feature,
           properties: {
             ...feature.properties,
             filtered_total_work_orders: filteredTotal,
+            raw_total_work_orders: rawTotal,
           },
         };
       }),
     };
-  }, [geojsonData, filteredBuildingTotals]);
+  }, [geojsonData, filteredBuildingTotals, rawBuildingTotals]);
 
   function onEachFeature(feature, layer) {
     const props = feature.properties || {};
@@ -690,6 +726,7 @@ export default function App() {
 
   function geojsonStyle(feature) {
     const value = feature?.properties?.filtered_total_work_orders || 0;
+
     return {
       fillColor: getColor(value, maxVisibleValue),
       weight: 1,
@@ -708,23 +745,21 @@ export default function App() {
     return <div className="loading">Loading dashboard...</div>;
   }
 
-  const pieTitle =
-    selectedBuilding
-      ? displayMode === "density"
-        ? "Craft Breakdown / 1000 sqft"
-        : "Craft Breakdown"
-      : displayMode === "density"
-        ? "Craft Breakdown / 1000 sqft - All Buildings"
-        : "Craft Breakdown - All Buildings";
+  const pieTitle = selectedBuilding
+    ? displayMode === "density"
+      ? "Craft Breakdown / 1000 sqft"
+      : "Craft Breakdown"
+    : displayMode === "density"
+      ? "Craft Breakdown / 1000 sqft - All Buildings"
+      : "Craft Breakdown - All Buildings";
 
-  const lineTitle =
-    selectedBuilding
-      ? displayMode === "density"
-        ? "Time Series by Craft / 1000 sqft"
-        : "Time Series by Craft"
-      : displayMode === "density"
-        ? "Time Series by Craft / 1000 sqft - All Buildings"
-        : "Time Series by Craft - All Buildings";
+  const lineTitle = selectedBuilding
+    ? displayMode === "density"
+      ? "Time Series by Craft / 1000 sqft"
+      : "Time Series by Craft"
+    : displayMode === "density"
+      ? "Time Series by Craft / 1000 sqft - All Buildings"
+      : "Time Series by Craft - All Buildings";
 
   return (
     <div className="app-shell">
@@ -769,7 +804,11 @@ export default function App() {
             </div>
           </div>
 
-          <PiePanel title={pieTitle} pieData={pieData} displayMode={displayMode} />
+          <PiePanel
+            title={pieTitle}
+            pieData={pieData}
+            displayMode={displayMode}
+          />
         </div>
 
         <TimeSeriesPanel
