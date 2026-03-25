@@ -43,6 +43,13 @@ body {
   padding: 10px;
 }
 
+.top-visuals {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+  gap: 10px;
+  align-items: start;
+}
+
 .map-panel,
 .panel {
   background: white;
@@ -69,15 +76,12 @@ body {
   overflow: hidden;
 }
 
-.details {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(500px, 1.3fr);
-  gap: 10px;
-  align-items: start;
+.pie-side-panel {
+  min-height: 344px;
+  overflow: hidden;
 }
 
-.details .panel {
-  min-height: 300px;
+.time-panel {
   overflow: hidden;
 }
 
@@ -198,12 +202,18 @@ input {
 }
 
 .line-chart-wrap {
-  height: 230px;
-  min-height: 230px;
+  height: 250px;
+  min-height: 250px;
 }
 
 .craft-legend {
   margin-top: 6px;
+}
+
+.vertical-legend {
+  max-height: 138px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .craft-legend-row {
@@ -263,17 +273,13 @@ input {
   font-size: 1.1rem;
 }
 
-@media (max-width: 1200px) {
-  .app-shell {
-    grid-template-columns: 280px 1fr;
+@media (max-width: 1300px) {
+  .top-visuals {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.95fr);
   }
 
   .map-wrap {
     height: 300px;
-  }
-
-  .details .panel {
-    min-height: 280px;
   }
 }
 
@@ -287,7 +293,7 @@ input {
     border-bottom: 1px solid #e2e8f0;
   }
 
-  .details {
+  .top-visuals {
     grid-template-columns: 1fr;
   }
 
@@ -295,8 +301,8 @@ input {
     height: 280px;
   }
 
-  .details .panel {
-    min-height: 260px;
+  .pie-side-panel {
+    min-height: unset;
   }
 
   .map-header {
