@@ -19,27 +19,28 @@ body {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 300px 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
   background: #ffffff;
   border-right: 1px solid #e2e8f0;
-  padding: 20px;
+  padding: 18px;
   overflow-y: auto;
 }
 
 .sidebar h1 {
-  margin: 0 0 4px 0;
-  font-size: 1.6rem;
+  margin: 0 0 10px 0;
+  font-size: 1.9rem;
+  line-height: 1.1;
 }
 
 .main-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px;
 }
 
 .map-panel,
@@ -47,7 +48,7 @@ body {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  padding: 16px;
+  padding: 14px;
 }
 
 .map-panel {
@@ -57,31 +58,32 @@ body {
 .map-header {
   display: flex;
   justify-content: flex-end;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .map-wrap {
-  height: 560px;
+  height: 360px;
   border-radius: 12px;
   overflow: hidden;
 }
 
 .details {
   display: grid;
-  grid-template-columns: minmax(340px, 0.9fr) minmax(520px, 1.4fr);
-  gap: 16px;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(500px, 1.3fr);
+  gap: 12px;
   align-items: start;
 }
 
 .details .panel {
-  min-height: 360px;
+  min-height: 330px;
   overflow: hidden;
 }
 
 .panel h2 {
   margin-top: 0;
+  margin-bottom: 10px;
   font-size: 1.1rem;
 }
 
@@ -94,6 +96,10 @@ body {
   margin-top: 10px;
   color: #475569;
   font-size: 0.92rem;
+}
+
+.overall-note {
+  margin-bottom: 12px;
 }
 
 label {
@@ -121,6 +127,30 @@ input {
 
 .stat strong {
   text-align: right;
+}
+
+.reset-button {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.reset-button:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: #93c5fd;
+}
+
+.reset-button.disabled,
+.reset-button:disabled {
+  cursor: default;
+  opacity: 0.8;
 }
 
 .legend {
@@ -160,12 +190,20 @@ input {
 
 .chart-wrap {
   width: 100%;
-  height: 300px;
-  min-height: 300px;
+}
+
+.pie-chart-wrap {
+  height: 240px;
+  min-height: 240px;
+}
+
+.line-chart-wrap {
+  height: 260px;
+  min-height: 260px;
 }
 
 .craft-legend {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .craft-legend-row {
@@ -195,6 +233,27 @@ input {
   height: 12px;
   border-radius: 3px;
   display: inline-block;
+  flex: 0 0 auto;
+}
+
+.line-legend {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.line-legend-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.line-legend-row.inactive {
+  opacity: 0.3;
 }
 
 .loading {
@@ -202,6 +261,20 @@ input {
   display: grid;
   place-items: center;
   font-size: 1.1rem;
+}
+
+@media (max-width: 1200px) {
+  .app-shell {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .map-wrap {
+    height: 330px;
+  }
+
+  .details .panel {
+    min-height: 320px;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -219,11 +292,11 @@ input {
   }
 
   .map-wrap {
-    height: 380px;
+    height: 320px;
   }
 
   .details .panel {
-    min-height: 320px;
+    min-height: 300px;
   }
 
   .map-header {
