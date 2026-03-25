@@ -211,7 +211,7 @@ input {
 }
 
 .vertical-legend {
-  max-height: 130px; /* was 138 */
+  max-height: 230px; /* was 138 */
   overflow-y: auto;
   padding-right: 4px;
 }
