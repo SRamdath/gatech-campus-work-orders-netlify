@@ -318,53 +318,57 @@ function PiePanel({ title, pieData }) {
     <div className="panel pie-side-panel">
       <h2>{title}</h2>
       {pieData.length > 0 ? (
-        <>
-          <div className="chart-wrap pie-chart-wrap">
-            <ResponsiveContainer width="100%" height={190}>
-              <PieChart>
-                <Pie
-                  data={filteredPieData}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={58}
-                  label={false}
-                  labelLine={false}
-                >
-                  {filteredPieData.map((entry, index) => (
-                    <Cell
-                      key={`${entry.name}-${index}`}
-                      fill={getCraftColor(entry.name, index)}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomPieTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
+        <div className="pie-side-layout">
+          <div className="pie-graphic">
+            <div className="chart-wrap pie-chart-wrap">
+              <ResponsiveContainer width="100%" height={210}>
+                <PieChart>
+                  <Pie
+                    data={filteredPieData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={62}
+                    label={false}
+                    labelLine={false}
+                  >
+                    {filteredPieData.map((entry, index) => (
+                      <Cell
+                        key={`${entry.name}-${index}`}
+                        fill={getCraftColor(entry.name, index)}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div className="craft-legend vertical-legend">
-            {pieData.map((item, index) => {
-              const isActive = activePie.includes(item.name);
+          <div className="pie-legend-side">
+            <div className="craft-legend side-legend">
+              {pieData.map((item, index) => {
+                const isActive = activePie.includes(item.name);
 
-              return (
-                <div
-                  key={item.name}
-                  className={`craft-legend-row${isActive ? "" : " inactive"}`}
-                  onClick={() => togglePie(item.name)}
-                >
-                  <div className="craft-legend-left">
-                    <span
-                      className="craft-legend-swatch"
-                      style={{ background: getCraftColor(item.name, index) }}
-                    />
-                    <span>{item.name}</span>
+                return (
+                  <div
+                    key={item.name}
+                    className={`craft-legend-row${isActive ? "" : " inactive"}`}
+                    onClick={() => togglePie(item.name)}
+                  >
+                    <div className="craft-legend-left">
+                      <span
+                        className="craft-legend-swatch"
+                        style={{ background: getCraftColor(item.name, index) }}
+                      />
+                      <span>{item.name}</span>
+                    </div>
+                    <strong>{item.value.toLocaleString()}</strong>
                   </div>
-                  <strong>{item.value.toLocaleString()}</strong>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </>
+        </div>
       ) : (
         <p className="muted">No craft data in this range.</p>
       )}
