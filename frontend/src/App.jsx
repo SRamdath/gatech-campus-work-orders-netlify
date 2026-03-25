@@ -197,17 +197,7 @@ function normalizeCount(rawValue, gsf) {
 
 function normalizeTimeseries(timeseries, gsf) {
   if (!Array.isArray(timeseries)) return [];
-  if (!gsf || Number(gsf) <= 0) {
-    return timeseries.map((row) => ({
-      year_month: row.year_month,
-      total: 0,
-      ...Object.fromEntries(
-        Object.entries(row)
-          .filter(([key]) => key !== "year_month" && key !== "total")
-          .map(([key]) => [key, 0])
-      ),
-    }));
-  }
+  if (!gsf || Number(gsf) <= 0) return timeseries.map((row) => ({ ...row }));
 
   const divisor = Number(gsf) / 1000;
 
@@ -474,7 +464,9 @@ function TimeSeriesPanel({ title, lineData, lineKeys, displayMode }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year_month" />
                 <YAxis allowDecimals={false} />
-                <Tooltip formatter={(value) => formatDisplayValue(value, displayMode)} />
+                <Tooltip
+                  formatter={(value) => formatDisplayValue(value, displayMode)}
+                />
                 {lineKeys
                   .filter((key) => activeLines.includes(key))
                   .map((key, index) => (
@@ -569,19 +561,13 @@ export default function App() {
     return Object.values(gsfLookup).reduce((sum, gsf) => sum + Number(gsf || 0), 0);
   }, [gsfLookup]);
 
-  const rawBuildingTotals = useMemo(() => {
-    const result = {};
-    for (const [facId, building] of Object.entries(buildingsLookup)) {
-      result[facId] = totalForRange(building.timeseries, yearStart, yearEnd);
-    }
-    return result;
-  }, [buildingsLookup, yearStart, yearEnd]);
-
   const filteredBuildingTotals = useMemo(() => {
     const result = {};
 
-    for (const [facId, rawTotal] of Object.entries(rawBuildingTotals)) {
+    for (const [facId, building] of Object.entries(buildingsLookup)) {
+      const rawTotal = totalForRange(building.timeseries, yearStart, yearEnd);
       const gsf = gsfLookup[facId] || 0;
+
       result[facId] =
         displayMode === "density"
           ? normalizeCount(rawTotal, gsf)
@@ -589,7 +575,7 @@ export default function App() {
     }
 
     return result;
-  }, [rawBuildingTotals, gsfLookup, displayMode]);
+  }, [buildingsLookup, yearStart, yearEnd, gsfLookup, displayMode]);
 
   const maxVisibleValue = useMemo(() => {
     const values = Object.values(filteredBuildingTotals);
@@ -597,18 +583,20 @@ export default function App() {
   }, [filteredBuildingTotals]);
 
   const totalVisible = useMemo(() => {
-    const rawTotal = Object.values(rawBuildingTotals).reduce((sum, value) => sum + value, 0);
-
     if (displayMode === "density") {
+      const rawTotal = Object.entries(buildingsLookup).reduce(
+        (sum, [, building]) => sum + totalForRange(building.timeseries, yearStart, yearEnd),
+        0
+      );
       return normalizeCount(rawTotal, aggregateGsf);
     }
 
-    return rawTotal;
-  }, [displayMode, rawBuildingTotals, aggregateGsf]);
+    return Object.values(filteredBuildingTotals).reduce((sum, value) => sum + value, 0);
+  }, [displayMode, buildingsLookup, yearStart, yearEnd, aggregateGsf, filteredBuildingTotals]);
 
   const mappedCount = useMemo(() => {
-    return Object.values(rawBuildingTotals).filter((v) => v > 0).length;
-  }, [rawBuildingTotals]);
+    return Object.values(filteredBuildingTotals).filter((v) => v > 0).length;
+  }, [filteredBuildingTotals]);
 
   const selectedBuilding = useMemo(() => {
     if (!selectedFacId || !buildingsLookup[selectedFacId]) return null;
@@ -769,7 +757,7 @@ export default function App() {
               >
                 <TileLayer
                   attribution="&copy; OpenStreetMap contributors"
-                  url="https://{s}.tile.openstreetmap.org/{z}/{y}.png"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <GeoJSON
                   data={styledGeojson}
