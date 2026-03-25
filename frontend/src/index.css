@@ -71,13 +71,13 @@ body {
 }
 
 .map-wrap {
-  height: 320px;
+  height: 360px;
   border-radius: 12px;
   overflow: hidden;
 }
 
 .pie-side-panel {
-  min-height: 360px;
+  min-height: 430px;
   overflow: hidden;
 }
 
@@ -229,7 +229,7 @@ input {
 }
 
 .side-legend {
-  max-height: 255px;
+  max-height: 200px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -316,7 +316,7 @@ input {
   }
 
   .map-wrap {
-    height: 300px;
+    height: 320px;
   }
 }
 
