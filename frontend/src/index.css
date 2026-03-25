@@ -92,6 +92,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  align-items: center;
   min-height: 230px;
 }
 
