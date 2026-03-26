@@ -827,10 +827,10 @@ export default function App() {
       `<div style="font-size:12px;">
         <strong>${name}</strong><br/>
         FAC_ID: ${facId || "N/A"}<br/>
-        Raw Work Orders: ${Math.round(Number(rawTotal || 0)).toLocaleString()}<br/>
-        GSF: ${gsf ? Math.round(gsf).toLocaleString() : "N/A"}<br/>
         ${displayMode === "density"
-          ? `WO / 1000 sqft: ${Number(filteredTotal || 0).toFixed(2)}`
+          ? `Raw Work Orders: ${Math.round(Number(rawTotal || 0)).toLocaleString()}<br/>
+             GSF: ${gsf ? Math.round(gsf).toLocaleString() : "N/A"}<br/>
+             WO / 1000 sqft: ${Number(filteredTotal || 0).toFixed(2)}`
           : `Work Orders: ${Math.round(Number(filteredTotal || 0)).toLocaleString()}`
         }
       </div>`
