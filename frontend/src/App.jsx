@@ -133,14 +133,14 @@ function getContinuousMapColor(value, scaleStats) {
 
   // multi-hue gradient stops
   const stops = [
-    [229, 231, 235], // light gray
-    [186, 230, 253], // light cyan
-    [103, 232, 249], // cyan
-    [96, 165, 250],  // blue
-    [37, 99, 235],   // strong blue
-    [67, 56, 202],   // indigo
-    [30, 27, 75],    // deep navy
-  ];
+  [229, 231, 235],
+  [186, 230, 253],
+  [125, 211, 252],
+  [96, 165, 250],
+  [59, 130, 246],
+  [67, 56, 202],
+  [49, 46, 129],
+];
 
   const scaled = t * (stops.length - 1);
   const index = Math.floor(scaled);
