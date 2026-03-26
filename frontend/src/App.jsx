@@ -41,16 +41,6 @@ const FALLBACK_COLORS = [
   "#475569",
 ];
 
-const MAP_COLORS = [
-  "#dbeafe",
-  "#bfdbfe",
-  "#93c5fd",
-  "#60a5fa",
-  "#3b82f6",
-  "#2563eb",
-  "#1d4ed8",
-];
-
 function getCraftColor(craft, index = 0) {
   if (CRAFT_COLORS[craft]) return CRAFT_COLORS[craft];
   return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
@@ -82,91 +72,140 @@ function getPercentile(sortedValues, percentile) {
   );
 }
 
-function getClippedQuantileThresholds(
-  values,
-  bucketCount = 7,
-  lowerPct = 0.01,
-  upperPct = 0.99
-) {
+function getClippedScaleStats(values, lowerPct = 0.01, upperPct = 0.99) {
   const clean = values
     .map((v) => Number(v || 0))
     .filter((v) => v > 0)
     .sort((a, b) => a - b);
 
   if (!clean.length) {
-    return [];
+    return {
+      lowerBound: 0,
+      upperBound: 0,
+      ticks: [],
+    };
   }
 
   const lowerBound = getPercentile(clean, lowerPct);
   const upperBound = getPercentile(clean, upperPct);
 
-  const clipped = clean.map((v) => Math.min(Math.max(v, lowerBound), upperBound));
+  const ticks = [
+    lowerBound,
+    getPercentile(clean, 0.25),
+    getPercentile(clean, 0.5),
+    getPercentile(clean, 0.75),
+    upperBound,
+  ];
 
-  const thresholds = [];
-  for (let i = 1; i < bucketCount; i += 1) {
-    thresholds.push(getPercentile(clipped, i / bucketCount));
-  }
-
-  return thresholds;
+  return {
+    lowerBound,
+    upperBound,
+    ticks,
+  };
 }
 
-function getColorFromThresholds(value, thresholds) {
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function interpolateChannel(start, end, t) {
+  return Math.round(start + (end - start) * t);
+}
+
+function interpolateColor(startRgb, endRgb, t) {
+  const r = interpolateChannel(startRgb[0], endRgb[0], t);
+  const g = interpolateChannel(startRgb[1], endRgb[1], t);
+  const b = interpolateChannel(startRgb[2], endRgb[2], t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function getContinuousMapColor(value, scaleStats) {
   if (!value || value <= 0) return "#f3f4f6";
-  if (!thresholds.length) return MAP_COLORS[0];
 
-  for (let i = 0; i < thresholds.length; i += 1) {
-    if (value <= thresholds[i]) {
-      return MAP_COLORS[i];
-    }
+  const { lowerBound, upperBound } = scaleStats || {};
+
+  if (!upperBound || upperBound <= 0 || upperBound <= lowerBound) {
+    return "rgb(37, 99, 235)";
   }
 
-  return MAP_COLORS[MAP_COLORS.length - 1];
+  const clipped = clamp(Number(value || 0), lowerBound, upperBound);
+  const normalized = (clipped - lowerBound) / (upperBound - lowerBound);
+
+  const stretched = Math.pow(normalized, 0.65);
+
+  return interpolateColor([219, 234, 254], [29, 78, 216], stretched);
 }
 
-function MapLegend({ thresholds, displayMode }) {
-  const bins = useMemo(() => {
-    const fmt = (v) =>
-      displayMode === "density"
-        ? Number(v).toFixed(1)
-        : Math.round(Number(v)).toLocaleString();
+function formatLegendValue(value, displayMode) {
+  return displayMode === "density"
+    ? Number(value || 0).toFixed(1)
+    : Math.round(Number(value || 0)).toLocaleString();
+}
 
-    if (!thresholds || !thresholds.length) {
-      return [{ label: "0", color: "#f3f4f6" }];
-    }
-
-    const labels = [{ label: "0", color: "#f3f4f6" }];
-
-    labels.push({
-      label: `0–${fmt(thresholds[0])}`,
-      color: MAP_COLORS[0],
-    });
-
-    for (let i = 1; i < thresholds.length; i += 1) {
-      labels.push({
-        label: `${fmt(thresholds[i - 1])}–${fmt(thresholds[i])}`,
-        color: MAP_COLORS[i],
-      });
-    }
-
-    labels.push({
-      label: `${fmt(thresholds[thresholds.length - 1])}+`,
-      color: MAP_COLORS[MAP_COLORS.length - 1],
-    });
-
-    return labels;
-  }, [thresholds, displayMode]);
+function MapLegend({ scaleStats, displayMode }) {
+  const ticks = scaleStats?.ticks || [];
+  const gradientStyle = {
+    background:
+      "linear-gradient(to right, rgb(219, 234, 254), rgb(29, 78, 216))",
+  };
 
   return (
     <div className="legend">
       <div className="legend-title">
         {displayMode === "density" ? "WO / 1000 sqft" : "Work Orders"}
       </div>
-      {bins.map((bin) => (
-        <div key={bin.label} className="legend-row">
-          <span className="legend-swatch" style={{ background: bin.color }} />
-          <span>{bin.label}</span>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flexWrap: "wrap",
+        }}
+      >
+        <span className="legend-row" style={{ margin: 0 }}>
+          <span className="legend-swatch" style={{ background: "#f3f4f6" }} />
+          <span>0</span>
+        </span>
+
+        <div
+          style={{
+            width: "260px",
+            maxWidth: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+          }}
+        >
+          <div
+            style={{
+              ...gradientStyle,
+              height: "12px",
+              borderRadius: "999px",
+              border: "1px solid #cbd5e1",
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "8px",
+              fontSize: "12px",
+              color: "#334155",
+            }}
+          >
+            {ticks.length > 0 ? (
+              ticks.map((tick, index) => (
+                <span key={`${tick}-${index}`}>
+                  {formatLegendValue(tick, displayMode)}
+                </span>
+              ))
+            ) : (
+              <span>0</span>
+            )}
+          </div>
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -663,13 +702,8 @@ export default function App() {
     return result;
   }, [rawBuildingTotals, gsfLookup, displayMode]);
 
-  const mapThresholds = useMemo(() => {
-    return getClippedQuantileThresholds(
-      Object.values(filteredBuildingTotals),
-      7,
-      0.01,
-      0.99
-    );
+  const mapScaleStats = useMemo(() => {
+    return getClippedScaleStats(Object.values(filteredBuildingTotals), 0.01, 0.99);
   }, [filteredBuildingTotals]);
 
   const totalVisible = useMemo(() => {
@@ -787,7 +821,7 @@ export default function App() {
     const value = feature?.properties?.filtered_total_work_orders || 0;
 
     return {
-      fillColor: getColorFromThresholds(value, mapThresholds),
+      fillColor: getContinuousMapColor(value, mapScaleStats),
       weight: 1,
       opacity: 1,
       color: "#475569",
@@ -840,7 +874,7 @@ export default function App() {
         <div className="top-visuals">
           <div className="map-panel">
             <div className="map-header">
-              <MapLegend thresholds={mapThresholds} displayMode={displayMode} />
+              <MapLegend scaleStats={mapScaleStats} displayMode={displayMode} />
             </div>
 
             <div className="map-wrap">
