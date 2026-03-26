@@ -123,17 +123,37 @@ function getContinuousMapColor(value, scaleStats) {
   if (!value || value <= 0) return "#f3f4f6";
 
   const { lowerBound, upperBound } = scaleStats || {};
+  if (!upperBound || upperBound <= lowerBound) return "#2563eb";
 
-  if (!upperBound || upperBound <= 0 || upperBound <= lowerBound) {
-    return "rgb(37, 99, 235)";
-  }
-
-  const clipped = clamp(Number(value || 0), lowerBound, upperBound);
+  const clipped = Math.min(Math.max(value, lowerBound), upperBound);
   const normalized = (clipped - lowerBound) / (upperBound - lowerBound);
 
-  const stretched = Math.pow(normalized, 0.65);
+  // stronger stretch (you can tweak this later)
+  const t = Math.pow(normalized, 0.5);
 
-  return interpolateColor([219, 234, 254], [29, 78, 216], stretched);
+  // multi-hue gradient stops
+  const stops = [
+    [229, 231, 235], // light gray
+    [186, 230, 253], // light cyan
+    [103, 232, 249], // cyan
+    [96, 165, 250],  // blue
+    [37, 99, 235],   // strong blue
+    [67, 56, 202],   // indigo
+    [30, 27, 75],    // deep navy
+  ];
+
+  const scaled = t * (stops.length - 1);
+  const index = Math.floor(scaled);
+  const frac = scaled - index;
+
+  const start = stops[index];
+  const end = stops[Math.min(index + 1, stops.length - 1)];
+
+  const r = Math.round(start[0] + (end[0] - start[0]) * frac);
+  const g = Math.round(start[1] + (end[1] - start[1]) * frac);
+  const b = Math.round(start[2] + (end[2] - start[2]) * frac);
+
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function formatLegendValue(value, displayMode) {
@@ -146,7 +166,7 @@ function MapLegend({ scaleStats, displayMode }) {
   const ticks = scaleStats?.ticks || [];
   const gradientStyle = {
     background:
-      "linear-gradient(to right, rgb(219, 234, 254), rgb(29, 78, 216))",
+      "linear-gradient(to right, #e5e7eb, #67e8f9, #60a5fa, #2563eb, #4338ca, #1e1b4b)",
   };
 
   return (
