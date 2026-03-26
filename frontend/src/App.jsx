@@ -104,21 +104,6 @@ function getClippedScaleStats(values, lowerPct = 0.01, upperPct = 0.99) {
   };
 }
 
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function interpolateChannel(start, end, t) {
-  return Math.round(start + (end - start) * t);
-}
-
-function interpolateColor(startRgb, endRgb, t) {
-  const r = interpolateChannel(startRgb[0], endRgb[0], t);
-  const g = interpolateChannel(startRgb[1], endRgb[1], t);
-  const b = interpolateChannel(startRgb[2], endRgb[2], t);
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
 function getContinuousMapColor(value, scaleStats) {
   if (!value || value <= 0) return "#f3f4f6";
 
@@ -127,20 +112,17 @@ function getContinuousMapColor(value, scaleStats) {
 
   const clipped = Math.min(Math.max(value, lowerBound), upperBound);
   const normalized = (clipped - lowerBound) / (upperBound - lowerBound);
-
-  // stronger stretch (you can tweak this later)
   const t = Math.pow(normalized, 0.5);
 
-  // multi-hue gradient stops
   const stops = [
-  [229, 231, 235],
-  [186, 230, 253],
-  [125, 211, 252],
-  [96, 165, 250],
-  [59, 130, 246],
-  [67, 56, 202],
-  [49, 46, 129],
-];
+    [229, 231, 235],
+    [186, 230, 253],
+    [125, 211, 252],
+    [96, 165, 250],
+    [59, 130, 246],
+    [67, 56, 202],
+    [49, 46, 129],
+  ];
 
   const scaled = t * (stops.length - 1);
   const index = Math.floor(scaled);
@@ -680,15 +662,25 @@ export default function App() {
 
   const buildingsLookup = dashboardData?.buildings ?? {};
 
-  const gsfLookup = useMemo(() => {
+  const firstGeoFeatureByFacId = useMemo(() => {
     const result = {};
     for (const feature of geojsonData?.features || []) {
       const facId = feature?.properties?.fac_id;
-      const gsf = feature?.properties?.Sheet3__GSF;
-      if (facId) result[facId] = Number(gsf || 0);
+      if (facId && !result[facId]) {
+        result[facId] = feature;
+      }
     }
     return result;
   }, [geojsonData]);
+
+  const gsfLookup = useMemo(() => {
+    const result = {};
+    for (const [facId, feature] of Object.entries(firstGeoFeatureByFacId)) {
+      const gsf = feature?.properties?.Sheet3__GSF;
+      result[facId] = Number(gsf || 0);
+    }
+    return result;
+  }, [firstGeoFeatureByFacId]);
 
   const aggregatedTimeseriesRaw = useMemo(() => {
     return aggregateTimeseriesAcrossBuildings(buildingsLookup);
@@ -810,20 +802,36 @@ export default function App() {
     };
   }, [geojsonData, filteredBuildingTotals, rawBuildingTotals]);
 
+  const geojsonLayerKey = useMemo(() => {
+    const lower = Number(mapScaleStats?.lowerBound || 0).toFixed(4);
+    const upper = Number(mapScaleStats?.upperBound || 0).toFixed(4);
+    return [
+      displayMode,
+      yearStart,
+      yearEnd,
+      selectedFacId || "all",
+      lower,
+      upper,
+    ].join("|");
+  }, [displayMode, yearStart, yearEnd, selectedFacId, mapScaleStats]);
+
   function onEachFeature(feature, layer) {
     const props = feature.properties || {};
     const facId = props.fac_id;
     const filteredTotal = props.filtered_total_work_orders || 0;
+    const rawTotal = props.raw_total_work_orders || 0;
     const name = props.mapped_building_name || props.Sheet3__Common_Name || "Unknown";
+    const gsf = Number(props.Sheet3__GSF || 0);
 
     layer.bindTooltip(
       `<div style="font-size:12px;">
         <strong>${name}</strong><br/>
         FAC_ID: ${facId || "N/A"}<br/>
-        ${displayMode === "density" ? "WO / 1000 sqft" : "Work Orders"}: ${
-          displayMode === "density"
-            ? Number(filteredTotal || 0).toFixed(2)
-            : Math.round(Number(filteredTotal || 0)).toLocaleString()
+        Raw Work Orders: ${Math.round(Number(rawTotal || 0)).toLocaleString()}<br/>
+        GSF: ${gsf ? Math.round(gsf).toLocaleString() : "N/A"}<br/>
+        ${displayMode === "density"
+          ? `WO / 1000 sqft: ${Number(filteredTotal || 0).toFixed(2)}`
+          : `Work Orders: ${Math.round(Number(filteredTotal || 0)).toLocaleString()}`
         }
       </div>`
     );
@@ -838,7 +846,7 @@ export default function App() {
   }
 
   function geojsonStyle(feature) {
-    const value = feature?.properties?.filtered_total_work_orders || 0;
+    const value = Number(feature?.properties?.filtered_total_work_orders || 0);
 
     return {
       fillColor: getContinuousMapColor(value, mapScaleStats),
@@ -908,6 +916,7 @@ export default function App() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <GeoJSON
+                  key={geojsonLayerKey}
                   data={styledGeojson}
                   style={geojsonStyle}
                   onEachFeature={onEachFeature}
