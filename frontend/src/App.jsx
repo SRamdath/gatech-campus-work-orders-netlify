@@ -41,6 +41,8 @@ const FALLBACK_COLORS = [
   "#475569",
 ];
 
+const MAP_COLORS = ["#dbeafe", "#93c5fd", "#60a5fa", "#2563eb", "#1d4ed8"];
+
 function getCraftColor(craft, index = 0) {
   if (CRAFT_COLORS[craft]) return CRAFT_COLORS[craft];
   return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
@@ -53,31 +55,84 @@ function fitFeatureBounds(map, featureLayer) {
   }
 }
 
-function MapLegend({ maxValue, displayMode }) {
+function getPercentile(sortedValues, percentile) {
+  if (!sortedValues.length) return 0;
+  if (sortedValues.length === 1) return sortedValues[0];
+
+  const index = (sortedValues.length - 1) * percentile;
+  const lowerIndex = Math.floor(index);
+  const upperIndex = Math.ceil(index);
+
+  if (lowerIndex === upperIndex) {
+    return sortedValues[lowerIndex];
+  }
+
+  const weight = index - lowerIndex;
+  return (
+    sortedValues[lowerIndex] * (1 - weight) +
+    sortedValues[upperIndex] * weight
+  );
+}
+
+function getClippedQuantileThresholds(values, bucketCount = 5, lowerPct = 0.01, upperPct = 0.99) {
+  const clean = values
+    .map((v) => Number(v || 0))
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+
+  if (!clean.length) {
+    return { thresholds: [], lowerBound: 0, upperBound: 0 };
+  }
+
+  const lowerBound = getPercentile(clean, lowerPct);
+  const upperBound = getPercentile(clean, upperPct);
+
+  const clipped = clean.map((v) => Math.min(Math.max(v, lowerBound), upperBound));
+
+  const thresholds = [];
+  for (let i = 1; i < bucketCount; i += 1) {
+    const p = i / bucketCount;
+    thresholds.push(getPercentile(clipped, p));
+  }
+
+  return { thresholds, lowerBound, upperBound };
+}
+
+function getColorFromThresholds(value, thresholds) {
+  if (!value || value <= 0) return "#f3f4f6";
+  if (!thresholds.length) return MAP_COLORS[0];
+
+  for (let i = 0; i < thresholds.length; i += 1) {
+    if (value <= thresholds[i]) {
+      return MAP_COLORS[i];
+    }
+  }
+
+  return MAP_COLORS[MAP_COLORS.length - 1];
+}
+
+function MapLegend({ thresholds, displayMode }) {
   const bins = useMemo(() => {
-    if (!maxValue || maxValue <= 0) {
+    if (!thresholds || !thresholds.length) {
       return [{ label: "0", color: "#f3f4f6" }];
     }
-
-    const b1 = Number((maxValue * 0.2).toFixed(2));
-    const b2 = Number((maxValue * 0.4).toFixed(2));
-    const b3 = Number((maxValue * 0.6).toFixed(2));
-    const b4 = Number((maxValue * 0.8).toFixed(2));
 
     const fmt = (v) =>
       displayMode === "density"
         ? Number(v).toFixed(1)
         : Math.round(Number(v)).toLocaleString();
 
+    const [t1, t2, t3, t4] = thresholds;
+
     return [
       { label: "0", color: "#f3f4f6" },
-      { label: `0–${fmt(b1)}`, color: "#dbeafe" },
-      { label: `${fmt(b1)}–${fmt(b2)}`, color: "#93c5fd" },
-      { label: `${fmt(b2)}–${fmt(b3)}`, color: "#60a5fa" },
-      { label: `${fmt(b3)}–${fmt(b4)}`, color: "#2563eb" },
-      { label: `${fmt(b4)}+`, color: "#1d4ed8" },
+      { label: `0–${fmt(t1)}`, color: MAP_COLORS[0] },
+      { label: `${fmt(t1)}–${fmt(t2)}`, color: MAP_COLORS[1] },
+      { label: `${fmt(t2)}–${fmt(t3)}`, color: MAP_COLORS[2] },
+      { label: `${fmt(t3)}–${fmt(t4)}`, color: MAP_COLORS[3] },
+      { label: `${fmt(t4)}+`, color: MAP_COLORS[4] },
     ];
-  }, [maxValue, displayMode]);
+  }, [thresholds, displayMode]);
 
   return (
     <div className="legend">
@@ -104,16 +159,6 @@ function ZoomToSelected({ selectedFeature }) {
   }, [map, selectedFeature]);
 
   return null;
-}
-
-function getColor(value, maxValue) {
-  if (!value || value <= 0 || !maxValue) return "#f3f4f6";
-  const ratio = value / maxValue;
-  if (ratio <= 0.2) return "#dbeafe";
-  if (ratio <= 0.4) return "#93c5fd";
-  if (ratio <= 0.6) return "#60a5fa";
-  if (ratio <= 0.8) return "#2563eb";
-  return "#1d4ed8";
 }
 
 function totalForRange(timeseries, startYear, endYear) {
@@ -172,7 +217,6 @@ function aggregateTimeseriesAcrossBuildings(buildingsLookup) {
   for (const building of Object.values(buildingsLookup || {})) {
     for (const row of building.timeseries || []) {
       const monthKey = row.year_month;
-
       if (!monthMap[monthKey]) {
         monthMap[monthKey] = { year_month: monthKey, total: 0 };
       }
@@ -203,16 +247,11 @@ function normalizeTimeseries(timeseries, gsf) {
   const divisor = Number(gsf) / 1000;
 
   return timeseries.map((row) => {
-    const next = {
-      year_month: row.year_month,
-      total: Number(row.total || 0) / divisor,
-    };
-
+    const next = { year_month: row.year_month, total: Number(row.total || 0) / divisor };
     for (const [key, value] of Object.entries(row)) {
       if (key === "year_month" || key === "total") continue;
       next[key] = Number(value || 0) / divisor;
     }
-
     return next;
   });
 }
@@ -237,9 +276,7 @@ function CustomPieTooltip({ active, payload, displayMode }) {
       }}
     >
       <div style={{ fontWeight: 700 }}>{item.name}</div>
-      <div>
-        {displayMode === "density" ? "WO / 1000 sqft" : "Count"}: {value}
-      </div>
+      <div>{displayMode === "density" ? "WO / 1000 sqft" : "Count"}: {value}</div>
     </div>
   );
 }
@@ -319,11 +356,7 @@ function Sidebar({
       <div className="panel">
         <h2>Summary</h2>
         <div className="stat">
-          <span>
-            {displayMode === "density"
-              ? "Total visible WO / 1000 sqft"
-              : "Total visible work orders"}
-          </span>
+          <span>{displayMode === "density" ? "Total visible WO / 1000 sqft" : "Total visible work orders"}</span>
           <strong>{formatDisplayValue(totalVisible, displayMode)}</strong>
         </div>
         <div className="stat">
@@ -350,11 +383,7 @@ function Sidebar({
             </div>
             <div className="stat">
               <span>GSF</span>
-              <strong>
-                {selectedBuilding.gsf
-                  ? Number(selectedBuilding.gsf).toLocaleString()
-                  : "N/A"}
-              </strong>
+              <strong>{selectedBuilding.gsf ? Number(selectedBuilding.gsf).toLocaleString() : "N/A"}</strong>
             </div>
             <div className="stat">
               <span>{displayMode === "density" ? "WO / 1000 sqft" : "Total"}</span>
@@ -561,15 +590,11 @@ export default function App() {
 
   const gsfLookup = useMemo(() => {
     const result = {};
-
     for (const feature of geojsonData?.features || []) {
       const facId = feature?.properties?.fac_id;
       const gsf = feature?.properties?.Sheet3__GSF;
-      if (facId) {
-        result[facId] = Number(gsf || 0);
-      }
+      if (facId) result[facId] = Number(gsf || 0);
     }
-
     return result;
   }, [geojsonData]);
 
@@ -605,9 +630,8 @@ export default function App() {
     return result;
   }, [rawBuildingTotals, gsfLookup, displayMode]);
 
-  const maxVisibleValue = useMemo(() => {
-    const values = Object.values(filteredBuildingTotals);
-    return values.length ? Math.max(...values) : 0;
+  const mapThresholds = useMemo(() => {
+    return getClippedQuantileThresholds(Object.values(filteredBuildingTotals), 5, 0.01, 0.99).thresholds;
   }, [filteredBuildingTotals]);
 
   const totalVisible = useMemo(() => {
@@ -631,15 +655,13 @@ export default function App() {
 
   const selectedBuilding = useMemo(() => {
     if (!selectedFacId || !buildingsLookup[selectedFacId]) return null;
-
     const building = buildingsLookup[selectedFacId];
-
     return {
       ...building,
       gsf: gsfLookup[selectedFacId] || 0,
       filteredTotal: filteredBuildingTotals[selectedFacId] || 0,
     };
-  }, [selectedFacId, buildingsLookup, gsfLookup, filteredBuildingTotals]);
+  }, [selectedFacId, buildingsLookup, filteredBuildingTotals, gsfLookup]);
 
   const activeTimeseries = useMemo(() => {
     if (selectedBuilding) {
@@ -655,7 +677,6 @@ export default function App() {
 
   const pieData = useMemo(() => {
     const counts = craftCountsForRange(activeTimeseries, yearStart, yearEnd);
-
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -726,9 +747,8 @@ export default function App() {
 
   function geojsonStyle(feature) {
     const value = feature?.properties?.filtered_total_work_orders || 0;
-
     return {
-      fillColor: getColor(value, maxVisibleValue),
+      fillColor: getColorFromThresholds(value, mapThresholds),
       weight: 1,
       opacity: 1,
       color: "#475569",
@@ -745,21 +765,23 @@ export default function App() {
     return <div className="loading">Loading dashboard...</div>;
   }
 
-  const pieTitle = selectedBuilding
-    ? displayMode === "density"
-      ? "Craft Breakdown / 1000 sqft"
-      : "Craft Breakdown"
-    : displayMode === "density"
-      ? "Craft Breakdown / 1000 sqft - All Buildings"
-      : "Craft Breakdown - All Buildings";
+  const pieTitle =
+    selectedBuilding
+      ? displayMode === "density"
+        ? "Craft Breakdown / 1000 sqft"
+        : "Craft Breakdown"
+      : displayMode === "density"
+        ? "Craft Breakdown / 1000 sqft - All Buildings"
+        : "Craft Breakdown - All Buildings";
 
-  const lineTitle = selectedBuilding
-    ? displayMode === "density"
-      ? "Time Series by Craft / 1000 sqft"
-      : "Time Series by Craft"
-    : displayMode === "density"
-      ? "Time Series by Craft / 1000 sqft - All Buildings"
-      : "Time Series by Craft - All Buildings";
+  const lineTitle =
+    selectedBuilding
+      ? displayMode === "density"
+        ? "Time Series by Craft / 1000 sqft"
+        : "Time Series by Craft"
+      : displayMode === "density"
+        ? "Time Series by Craft / 1000 sqft - All Buildings"
+        : "Time Series by Craft - All Buildings";
 
   return (
     <div className="app-shell">
@@ -781,7 +803,7 @@ export default function App() {
         <div className="top-visuals">
           <div className="map-panel">
             <div className="map-header">
-              <MapLegend maxValue={maxVisibleValue} displayMode={displayMode} />
+              <MapLegend thresholds={mapThresholds} displayMode={displayMode} />
             </div>
 
             <div className="map-wrap">
@@ -804,11 +826,7 @@ export default function App() {
             </div>
           </div>
 
-          <PiePanel
-            title={pieTitle}
-            pieData={pieData}
-            displayMode={displayMode}
-          />
+          <PiePanel title={pieTitle} pieData={pieData} displayMode={displayMode} />
         </div>
 
         <TimeSeriesPanel
