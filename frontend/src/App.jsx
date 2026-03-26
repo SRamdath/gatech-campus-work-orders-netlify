@@ -129,7 +129,7 @@ function getContinuousMapColor(value, scaleStats) {
   const normalized = (clipped - lowerBound) / (upperBound - lowerBound);
 
   // stronger stretch (you can tweak this later)
-  const t = Math.pow(normalized, 0.8);
+  const t = Math.pow(normalized, 0.5);
 
   // multi-hue gradient stops
   const stops = [
